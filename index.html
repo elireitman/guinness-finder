@@ -616,6 +616,22 @@
     .nav-footer { padding: 12px 16px; gap: 12px; }
   }
 
+  /* ========== GUINNESS TAGS ========== */
+  .guinness-tag {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .tag-confirmed { background: rgba(76, 175, 80, 0.2); color: #81c784; border: 1px solid rgba(76, 175, 80, 0.3); }
+  .tag-likely { background: rgba(197, 165, 90, 0.2); color: var(--guinness-gold); border: 1px solid rgba(197, 165, 90, 0.3); }
+  .tag-maybe { background: rgba(242, 226, 196, 0.08); color: rgba(242, 226, 196, 0.5); border: 1px solid rgba(242, 226, 196, 0.1); }
+  .tag-unknown { background: rgba(242, 226, 196, 0.05); color: rgba(242, 226, 196, 0.35); border: 1px solid rgba(242, 226, 196, 0.08); }
+
   /* ========== CUSTOM LEAFLET ========== */
   .leaflet-container { background: #1a1a1a; }
 
@@ -917,19 +933,56 @@ function searchPubs() {
         const lng = el.lon || (el.center && el.center.lon);
         if (!lat || !lng) return null;
 
-        const name = (el.tags && el.tags.name) || 'Unnamed Pub';
-        const addr = buildAddress(el.tags || {});
-        const type = el.tags && el.tags.amenity || 'pub';
+        const tags = el.tags || {};
+        const name = tags.name || 'Unnamed Pub';
+        const addr = buildAddress(tags);
+        const type = tags.amenity || 'pub';
         const dist = haversine(userLat, userLng, lat, lng);
+        const score = guinnessScore(name, tags);
 
-        return { name, addr, type, lat, lng, dist };
+        return { name, addr, type, lat, lng, dist, score };
       })
       .filter(Boolean)
-      .sort((a, b) => a.dist - b.dist);
+      .sort((a, b) => b.score - a.score || a.dist - b.dist);
 
     renderResults();
   })
   .catch(() => showResultsError('Error searching for pubs. Please try again.'));
+}
+
+// ========== GUINNESS LIKELIHOOD SCORING ==========
+function guinnessScore(name, tags) {
+  let score = 0;
+  const nameLower = (name || '').toLowerCase();
+  const cuisine = (tags.cuisine || '').toLowerCase();
+  const desc = (tags.description || '').toLowerCase();
+  const brand = (tags['brand'] || tags['drink:brand'] || '').toLowerCase();
+  const beer = (tags['brewery'] || tags['real_ale'] || tags['drink:beer'] || '').toLowerCase();
+
+  // Direct Guinness mentions
+  if (nameLower.includes('guinness') || brand.includes('guinness') || beer.includes('guinness') || desc.includes('guinness')) score += 50;
+
+  // Irish cuisine / Irish pub
+  if (cuisine.includes('irish')) score += 30;
+  if (nameLower.includes('irish')) score += 25;
+
+  // Irish-themed name keywords
+  const irishKeywords = ['shamrock', 'celtic', 'clover', 'harp', 'dublin', 'galway', 'cork', 'limerick', 'donegal', 'kerry', 'kilkenny', 'tipperary', 'sligo', 'wicklow', 'belfast', 'emerald', 'paddy', 'murphy', 'o\'brien', 'obrien', "o'brien", 'fitzgerald', 'finnegan', 'flanagan', 'molly', 'mcsorley', 'mcgee', 'maguire', 'connolly', 'doyle', 'brennan', 'riley', 'sullivan', "sullivan's", 'shenanigan', 'blarney', 'craic', 'gaelic', 'celtic', 'eire'];
+  for (const kw of irishKeywords) {
+    if (nameLower.includes(kw)) { score += 20; break; }
+  }
+
+  // Pub type (pubs more likely than bars/restaurants)
+  if (tags.amenity === 'pub') score += 5;
+
+  return score;
+}
+
+function guinnessLabel(score) {
+  if (score >= 50) return { text: 'Guinness confirmed', cls: 'tag-confirmed' };
+  if (score >= 25) return { text: 'Likely has Guinness', cls: 'tag-likely' };
+  if (score >= 5)  return { text: 'Pub', cls: 'tag-maybe' };
+  return { text: 'Bar', cls: 'tag-unknown' };
 }
 
 function buildAddress(tags) {
@@ -972,12 +1025,13 @@ function renderResults() {
     const distNum = pub.dist < 1 ? Math.round(pub.dist * 1000) : pub.dist.toFixed(1);
     const distUnit = pub.dist < 1 ? 'metres' : 'km';
 
+    const label = guinnessLabel(pub.score);
     return `
       <div class="pub-card" onclick="navigateTo(${i})">
         <div class="pub-info">
           <h3>&#127866; ${escHtml(pub.name)}</h3>
           ${pub.addr ? `<p class="pub-address">${escHtml(pub.addr)}</p>` : ''}
-          <span class="pub-type">${pub.type}</span>
+          <span class="guinness-tag ${label.cls}">${label.text}</span>
         </div>
         <div class="pub-distance">
           <div class="dist-value">${distNum}</div>
