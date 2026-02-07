@@ -817,6 +817,7 @@ function useGPS() {
   showScreen('results');
   showLoading('Getting your location...');
 
+  // iOS Safari can be slow — try high accuracy first, fall back to low accuracy
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       userLat = pos.coords.latitude;
@@ -824,10 +825,36 @@ function useGPS() {
       searchPubs();
     },
     (err) => {
-      console.error(err);
-      showResultsError('Could not get your location. Please try entering it manually.');
+      console.error('Geolocation error:', err.code, err.message);
+      if (err.code === 1) {
+        // PERMISSION_DENIED
+        showResultsError(
+          'Location access was denied.<br><br>' +
+          '<strong>On iPhone:</strong> Go to <em>Settings &gt; Privacy &gt; Location Services</em> and make sure it\'s enabled for Safari. ' +
+          'Then reload this page and tap "Use My Location" again.<br><br>' +
+          'Or use the "Enter Location" option instead.'
+        );
+      } else if (err.code === 2) {
+        // POSITION_UNAVAILABLE
+        showResultsError('Your device could not determine your location. Please try entering it manually.');
+      } else if (err.code === 3) {
+        // TIMEOUT — retry with lower accuracy
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            userLat = pos.coords.latitude;
+            userLng = pos.coords.longitude;
+            searchPubs();
+          },
+          () => {
+            showResultsError('Location request timed out. Please try entering your location manually.');
+          },
+          { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
+        );
+      } else {
+        showResultsError('Could not get your location. Please try entering it manually.');
+      }
     },
-    { enableHighAccuracy: true, timeout: 15000 }
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
   );
 }
 
