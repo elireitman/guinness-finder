@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Find Me A Guinness</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=Inter:wght@300;400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --guinness-black: #0a0a0a;
+    --guinness-cream: #F2E2C4;
+    --guinness-gold: #C5A55A;
+    --guinness-dark-gold: #8B7335;
+    --guinness-ruby: #3D0C02;
+    --guinness-head: #E8D5AA;
+    --guinness-foam: #FFF8E7;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background: var(--guinness-black);
+    color: var(--guinness-cream);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ========== BUBBLES ANIMATION ========== */
+  .bubbles-container {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+  }
+
+  .bubble {
+    position: absolute;
+    bottom: -20px;
+    background: radial-gradient(circle at 30% 30%, rgba(255,248,231,0.15), rgba(255,248,231,0.03));
+    border: 1px solid rgba(255,248,231,0.08);
+    border-radius: 50%;
+    animation: rise linear infinite;
+  }
+
+  @keyframes rise {
+    0% { transform: translateY(0) translateX(0) scale(1); opacity: 0.6; }
+    25% { transform: translateY(-25vh) translateX(8px) scale(1.05); opacity: 0.5; }
+    50% { transform: translateY(-50vh) translateX(-5px) scale(1.1); opacity: 0.4; }
+    75% { transform: translateY(-75vh) translateX(10px) scale(1.05); opacity: 0.3; }
+    100% { transform: translateY(-105vh) translateX(-3px) scale(1); opacity: 0; }
+  }
+
+  /* ========== PINT GLASS ========== */
+  .pint-glass {
+    width: 100px;
+    height: 160px;
+    margin: 0 auto 30px;
+    position: relative;
+  }
+
+  .pint-glass .glass-body {
+    width: 80px;
+    height: 130px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+    border: 2px solid rgba(255,248,231,0.2);
+    border-radius: 5px 5px 15px 15px;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(4px);
+  }
+
+  .pint-glass .stout {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, #1a0500, #3D0C02, #2a0800);
+    transition: height 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .pint-glass .head {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 22%;
+    background: linear-gradient(to bottom, var(--guinness-foam), var(--guinness-head), #d4c49a);
+    border-radius: 3px 3px 0 0;
+    transition: bottom 1.5s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0;
+  }
+
+  .pint-glass.filling .stout { height: 75%; }
+  .pint-glass.filling .head { bottom: 75%; opacity: 1; }
+  .pint-glass.full .stout { height: 78%; }
+  .pint-glass.full .head { bottom: 78%; opacity: 1; }
+
+  .pint-glass .glass-base {
+    width: 60px;
+    height: 12px;
+    margin: 0 auto;
+    background: rgba(255,255,255,0.06);
+    border: 2px solid rgba(255,248,231,0.15);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+  }
+
+  /* ========== SCREENS ========== */
+  .screen {
+    display: none;
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+  }
+
+  .screen.active { display: flex; }
+
+  /* ========== LANDING SCREEN ========== */
+  #landing {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+  }
+
+  .brand-harp {
+    font-size: 72px;
+    margin-bottom: 10px;
+    filter: drop-shadow(0 0 20px rgba(197, 165, 90, 0.3));
+  }
+
+  .brand-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.5rem, 8vw, 4.5rem);
+    font-weight: 900;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--guinness-cream);
+    margin-bottom: 8px;
+    text-shadow: 0 2px 20px rgba(197, 165, 90, 0.2);
+  }
+
+  .brand-subtitle {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(1rem, 3vw, 1.4rem);
+    color: var(--guinness-gold);
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    margin-bottom: 50px;
+    font-weight: 400;
+  }
+
+  .brand-line {
+    width: 80px;
+    height: 2px;
+    background: linear-gradient(to right, transparent, var(--guinness-gold), transparent);
+    margin: 0 auto 40px;
+  }
+
+  /* ========== BUTTONS ========== */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 36px;
+    border: 2px solid var(--guinness-gold);
+    background: transparent;
+    color: var(--guinness-cream);
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    font-weight: 500;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border-radius: 4px;
+    min-width: 280px;
+    justify-content: center;
+  }
+
+  .btn:hover {
+    background: var(--guinness-gold);
+    color: var(--guinness-black);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(197, 165, 90, 0.25);
+  }
+
+  .btn:active { transform: translateY(0); }
+
+  .btn-primary {
+    background: var(--guinness-gold);
+    color: var(--guinness-black);
+    font-weight: 600;
+  }
+
+  .btn-primary:hover {
+    background: var(--guinness-cream);
+    border-color: var(--guinness-cream);
+  }
+
+  .btn-icon { font-size: 1.3rem; }
+
+  .btn-group {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  /* ========== LOCATION INPUT ========== */
+  #location-input {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+  }
+
+  .input-section {
+    width: 100%;
+    max-width: 500px;
+  }
+
+  .input-section h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+    color: var(--guinness-cream);
+  }
+
+  .input-section p {
+    color: var(--guinness-gold);
+    margin-bottom: 30px;
+    font-size: 0.95rem;
+  }
+
+  .search-box {
+    display: flex;
+    gap: 0;
+    margin-bottom: 20px;
+  }
+
+  .search-box input {
+    flex: 1;
+    padding: 16px 20px;
+    background: rgba(255,248,231,0.06);
+    border: 2px solid rgba(197,165,90,0.3);
+    border-right: none;
+    border-radius: 4px 0 0 4px;
+    color: var(--guinness-cream);
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+
+  .search-box input:focus {
+    border-color: var(--guinness-gold);
+  }
+
+  .search-box input::placeholder {
+    color: rgba(242, 226, 196, 0.4);
+  }
+
+  .search-box button {
+    padding: 16px 24px;
+    background: var(--guinness-gold);
+    border: 2px solid var(--guinness-gold);
+    border-radius: 0 4px 4px 0;
+    color: var(--guinness-black);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+
+  .search-box button:hover { background: var(--guinness-cream); border-color: var(--guinness-cream); }
+
+  .back-link {
+    color: var(--guinness-gold);
+    text-decoration: none;
+    font-size: 0.9rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: color 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .back-link:hover { color: var(--guinness-cream); }
+
+  /* ========== RESULTS SCREEN ========== */
+  #results {
+    flex-direction: column;
+    padding: 0;
+  }
+
+  .results-header {
+    padding: 24px 20px 16px;
+    border-bottom: 1px solid rgba(197,165,90,0.15);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .results-header h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.5rem;
+  }
+
+  .results-header .back-link { font-size: 0.85rem; }
+
+  .results-subtitle {
+    padding: 0 20px;
+    font-size: 0.85rem;
+    color: var(--guinness-gold);
+    margin: 8px 0 4px;
+  }
+
+  .results-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 20px 20px;
+  }
+
+  .pub-card {
+    background: linear-gradient(135deg, rgba(255,248,231,0.04), rgba(255,248,231,0.01));
+    border: 1px solid rgba(197,165,90,0.15);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .pub-card:hover {
+    border-color: var(--guinness-gold);
+    background: rgba(197,165,90,0.08);
+    transform: translateX(4px);
+  }
+
+  .pub-info h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.15rem;
+    margin-bottom: 4px;
+    color: var(--guinness-cream);
+  }
+
+  .pub-info .pub-address {
+    font-size: 0.85rem;
+    color: rgba(242,226,196,0.6);
+    margin-bottom: 6px;
+  }
+
+  .pub-info .pub-type {
+    font-size: 0.75rem;
+    color: var(--guinness-gold);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .pub-distance {
+    text-align: right;
+    flex-shrink: 0;
+    margin-left: 16px;
+  }
+
+  .pub-distance .dist-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--guinness-gold);
+  }
+
+  .pub-distance .dist-unit {
+    font-size: 0.75rem;
+    color: rgba(242,226,196,0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .pub-distance .dist-walk {
+    font-size: 0.8rem;
+    color: rgba(242,226,196,0.4);
+    margin-top: 2px;
+  }
+
+  .no-results {
+    text-align: center;
+    padding: 60px 20px;
+    color: rgba(242,226,196,0.5);
+  }
+
+  .no-results h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    color: var(--guinness-cream);
+    margin-bottom: 12px;
+  }
+
+  .loading {
+    text-align: center;
+    padding: 80px 20px;
+  }
+
+  .loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid rgba(197,165,90,0.2);
+    border-top-color: var(--guinness-gold);
+    border-radius: 50%;
+    margin: 0 auto 20px;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading p {
+    color: var(--guinness-gold);
+    font-size: 0.95rem;
+  }
+
+  .loading .loading-quip {
+    color: rgba(242,226,196,0.5);
+    font-size: 0.85rem;
+    margin-top: 8px;
+    font-style: italic;
+  }
+
+  /* ========== NAVIGATION SCREEN ========== */
+  #navigation {
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  .nav-header {
+    padding: 16px 20px;
+    background: linear-gradient(to bottom, var(--guinness-black), rgba(10,10,10,0.95));
+    border-bottom: 2px solid var(--guinness-gold);
+    flex-shrink: 0;
+    z-index: 1000;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .nav-header .nav-dest h3 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.2rem;
+    color: var(--guinness-cream);
+  }
+
+  .nav-header .nav-dest p {
+    font-size: 0.8rem;
+    color: var(--guinness-gold);
+  }
+
+  .nav-header .back-link {
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  #map {
+    flex: 1;
+    z-index: 1;
+  }
+
+  .nav-footer {
+    padding: 16px 20px;
+    background: linear-gradient(to top, var(--guinness-black), rgba(10,10,10,0.97));
+    border-top: 2px solid var(--guinness-gold);
+    flex-shrink: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .nav-pint {
+    width: 50px;
+    height: 80px;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .nav-pint .glass-body {
+    width: 40px;
+    height: 65px;
+    margin: 0 auto;
+    background: linear-gradient(135deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
+    border: 2px solid rgba(255,248,231,0.2);
+    border-radius: 3px 3px 10px 10px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .nav-pint .stout {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, #1a0500, #3D0C02);
+    transition: height 2s ease;
+  }
+
+  .nav-pint .head {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 20%;
+    background: linear-gradient(to bottom, var(--guinness-foam), var(--guinness-head));
+    transition: bottom 2s ease, opacity 0.5s;
+    opacity: 0;
+  }
+
+  .nav-pint .glass-base {
+    width: 30px;
+    height: 8px;
+    margin: 0 auto;
+    background: rgba(255,255,255,0.04);
+    border: 2px solid rgba(255,248,231,0.12);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+  }
+
+  .nav-stats {
+    flex: 1;
+  }
+
+  .nav-stats .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 4px;
+  }
+
+  .nav-stats .stat-label {
+    font-size: 0.75rem;
+    color: rgba(242,226,196,0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .nav-stats .stat-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    color: var(--guinness-cream);
+    font-weight: 700;
+  }
+
+  .nav-quote {
+    font-size: 0.8rem;
+    color: var(--guinness-gold);
+    font-style: italic;
+    margin-top: 6px;
+    text-align: center;
+  }
+
+  /* ========== ARRIVED OVERLAY ========== */
+  .arrived-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(10,10,10,0.95);
+    z-index: 9999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px;
+    animation: fadeIn 0.5s ease;
+  }
+
+  .arrived-overlay.show {
+    display: flex;
+  }
+
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .arrived-overlay h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.5rem;
+    color: var(--guinness-cream);
+    margin-bottom: 10px;
+  }
+
+  .arrived-overlay .cheers {
+    font-size: 4rem;
+    margin-bottom: 20px;
+  }
+
+  .arrived-overlay p {
+    color: var(--guinness-gold);
+    font-size: 1.1rem;
+    max-width: 400px;
+    line-height: 1.6;
+    margin-bottom: 30px;
+  }
+
+  /* ========== RESPONSIVE ========== */
+  @media (max-width: 480px) {
+    .btn { min-width: unset; width: 100%; padding: 14px 24px; font-size: 0.9rem; }
+    .brand-title { letter-spacing: 2px; }
+    .pub-card { padding: 16px; }
+    .nav-footer { padding: 12px 16px; gap: 12px; }
+  }
+
+  /* ========== CUSTOM LEAFLET ========== */
+  .leaflet-container { background: #1a1a1a; }
+
+  .user-marker {
+    width: 20px;
+    height: 20px;
+    background: var(--guinness-gold);
+    border: 3px solid var(--guinness-cream);
+    border-radius: 50%;
+    box-shadow: 0 0 15px rgba(197,165,90,0.5);
+  }
+
+  .pub-marker {
+    width: 32px;
+    height: 32px;
+    background: var(--guinness-black);
+    border: 2px solid var(--guinness-gold);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }
+
+  /* Leaflet dark tile adjustments */
+  .dark-tiles { filter: brightness(0.7) contrast(1.1) saturate(0.3) sepia(0.3); }
+</style>
+</head>
+<body>
+
+<!-- BUBBLES -->
+<div class="bubbles-container" id="bubbles"></div>
+
+<!-- ========== LANDING SCREEN ========== -->
+<div id="landing" class="screen active">
+  <div class="brand-harp">&#127866;</div>
+  <h1 class="brand-title">Find Me A<br>Guinness</h1>
+  <div class="brand-line"></div>
+  <p class="brand-subtitle">Your Nearest Pint Awaits</p>
+
+  <div class="pint-glass" id="landing-pint">
+    <div class="glass-body">
+      <div class="stout"></div>
+      <div class="head"></div>
+    </div>
+    <div class="glass-base"></div>
+  </div>
+
+  <div class="btn-group">
+    <button class="btn btn-primary" onclick="useGPS()">
+      <span class="btn-icon">&#128225;</span> Use My Location
+    </button>
+    <button class="btn" onclick="showManualInput()">
+      <span class="btn-icon">&#128269;</span> Enter Location
+    </button>
+  </div>
+</div>
+
+<!-- ========== MANUAL LOCATION INPUT ========== -->
+<div id="location-input" class="screen">
+  <div class="input-section">
+    <h2>Where Are You?</h2>
+    <p>Enter a city, address, or postcode</p>
+    <div class="search-box">
+      <input type="text" id="address-input" placeholder="e.g. Dublin, Temple Bar, W1..."
+             onkeydown="if(event.key==='Enter') geocodeAddress()">
+      <button onclick="geocodeAddress()">&#8594;</button>
+    </div>
+    <a class="back-link" onclick="showScreen('landing')">&#8592; Back</a>
+  </div>
+</div>
+
+<!-- ========== RESULTS SCREEN ========== -->
+<div id="results" class="screen">
+  <div class="results-header">
+    <h2>&#127866; Nearby Pubs</h2>
+    <a class="back-link" onclick="showScreen('landing')">&#8592; Start Over</a>
+  </div>
+  <p class="results-subtitle" id="results-subtitle"></p>
+  <div class="results-list" id="results-list">
+    <!-- Populated by JS -->
+  </div>
+</div>
+
+<!-- ========== NAVIGATION SCREEN ========== -->
+<div id="navigation" class="screen">
+  <div class="nav-header">
+    <div class="nav-dest">
+      <h3 id="nav-pub-name">Pub Name</h3>
+      <p id="nav-pub-address">Address</p>
+    </div>
+    <a class="back-link" onclick="exitNavigation()">&#10005; Exit</a>
+  </div>
+  <div id="map"></div>
+  <div class="nav-footer">
+    <div class="nav-pint" id="nav-pint">
+      <div class="glass-body">
+        <div class="stout" id="nav-stout"></div>
+        <div class="head" id="nav-head"></div>
+      </div>
+      <div class="glass-base"></div>
+    </div>
+    <div class="nav-stats">
+      <div class="stat-row">
+        <span class="stat-label">Distance</span>
+        <span class="stat-value" id="nav-distance">--</span>
+      </div>
+      <div class="stat-row">
+        <span class="stat-label">Est. Walk</span>
+        <span class="stat-value" id="nav-time">--</span>
+      </div>
+      <div class="nav-quote" id="nav-quote"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== ARRIVED OVERLAY ========== -->
+<div class="arrived-overlay" id="arrived-overlay">
+  <div class="cheers">&#127866;&#127881;</div>
+  <h1>You've Arrived!</h1>
+  <p id="arrived-message">Time for a lovely pint of the black stuff. Enjoy every sip - you've earned it!</p>
+  <button class="btn btn-primary" onclick="closeArrived()">Slainte!</button>
+</div>
+
+<script>
+// ========== STATE ==========
+let userLat = null, userLng = null;
+let destLat = null, destLng = null;
+let map = null;
+let routeLine = null;
+let userMarker = null;
+let watchId = null;
+let pubs = [];
+let initialDistance = null;
+
+// ========== QUOTES ==========
+const quotes = [
+  "A Guinness a day keeps the doctor away... probably.",
+  "Good things come to those who wait. 119.5 seconds, to be exact.",
+  "There's more to life than Guinness... but let's not risk it.",
+  "It takes 119.5 seconds to pour the perfect pint.",
+  "Guinness is good for you. - An old Irish proverb (and ad).",
+  "May your glass be ever full. May the roof over your head be always strong.",
+  "The light music of whiskey falling into glasses made an agreeable interlude. - James Joyce",
+  "When I die, I want to decompose in a barrel of Guinness.",
+  "A pint of plain is your only man. - Flann O'Brien",
+  "In victory, you deserve Guinness; in defeat, you need it.",
+  "Keep walking... your Guinness is getting closer!",
+  "The surge and settle. Poetry in a glass.",
+  "Almost there! The black gold awaits.",
+  "Fun fact: 10 million glasses of Guinness are enjoyed daily worldwide.",
+  "St. James's Gate has been brewing since 1759. That's commitment.",
+];
+
+function randomQuote() {
+  return quotes[Math.floor(Math.random() * quotes.length)];
+}
+
+// ========== BUBBLES ==========
+function createBubbles() {
+  const container = document.getElementById('bubbles');
+  for (let i = 0; i < 30; i++) {
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    const size = Math.random() * 6 + 2;
+    bubble.style.width = size + 'px';
+    bubble.style.height = size + 'px';
+    bubble.style.left = Math.random() * 100 + '%';
+    bubble.style.animationDuration = (Math.random() * 8 + 6) + 's';
+    bubble.style.animationDelay = (Math.random() * 10) + 's';
+    container.appendChild(bubble);
+  }
+}
+
+// ========== SCREEN MANAGEMENT ==========
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'navigation' && map) {
+    setTimeout(() => map.invalidateSize(), 100);
+  }
+}
+
+// ========== LANDING PINT ANIMATION ==========
+function animateLandingPint() {
+  const pint = document.getElementById('landing-pint');
+  setTimeout(() => pint.classList.add('filling'), 500);
+  setTimeout(() => { pint.classList.remove('filling'); pint.classList.add('full'); }, 2000);
+}
+
+// ========== GPS LOCATION ==========
+function useGPS() {
+  if (!navigator.geolocation) {
+    alert('Geolocation is not supported by your browser.');
+    return;
+  }
+
+  showScreen('results');
+  showLoading('Getting your location...');
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      userLat = pos.coords.latitude;
+      userLng = pos.coords.longitude;
+      searchPubs();
+    },
+    (err) => {
+      console.error(err);
+      showResultsError('Could not get your location. Please try entering it manually.');
+    },
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+}
+
+// ========== MANUAL INPUT ==========
+function showManualInput() {
+  showScreen('location-input');
+  setTimeout(() => document.getElementById('address-input').focus(), 300);
+}
+
+function geocodeAddress() {
+  const addr = document.getElementById('address-input').value.trim();
+  if (!addr) return;
+
+  showScreen('results');
+  showLoading('Finding "' + addr + '"...');
+
+  fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(addr) + '&limit=1', {
+    headers: { 'Accept': 'application/json' }
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (!data.length) {
+      showResultsError('Could not find that location. Please try a different address.');
+      return;
+    }
+    userLat = parseFloat(data[0].lat);
+    userLng = parseFloat(data[0].lon);
+    searchPubs();
+  })
+  .catch(() => showResultsError('Error looking up address. Please try again.'));
+}
+
+// ========== SEARCH PUBS ==========
+function searchPubs() {
+  showLoading('Searching for pubs & bars near you...');
+
+  const radius = 3000;
+  const query = `
+    [out:json][timeout:25];
+    (
+      node["amenity"="pub"](around:${radius},${userLat},${userLng});
+      node["amenity"="bar"](around:${radius},${userLat},${userLng});
+      node["amenity"="restaurant"]["cuisine"~"irish"](around:${radius},${userLat},${userLng});
+      way["amenity"="pub"](around:${radius},${userLat},${userLng});
+      way["amenity"="bar"](around:${radius},${userLat},${userLng});
+    );
+    out center body;
+  `;
+
+  fetch('https://overpass-api.de/api/interpreter', {
+    method: 'POST',
+    body: 'data=' + encodeURIComponent(query),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  })
+  .then(r => r.json())
+  .then(data => {
+    pubs = data.elements
+      .map(el => {
+        const lat = el.lat || (el.center && el.center.lat);
+        const lng = el.lon || (el.center && el.center.lon);
+        if (!lat || !lng) return null;
+
+        const name = (el.tags && el.tags.name) || 'Unnamed Pub';
+        const addr = buildAddress(el.tags || {});
+        const type = el.tags && el.tags.amenity || 'pub';
+        const dist = haversine(userLat, userLng, lat, lng);
+
+        return { name, addr, type, lat, lng, dist };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.dist - b.dist);
+
+    renderResults();
+  })
+  .catch(() => showResultsError('Error searching for pubs. Please try again.'));
+}
+
+function buildAddress(tags) {
+  const parts = [];
+  if (tags['addr:street']) {
+    let street = '';
+    if (tags['addr:housenumber']) street += tags['addr:housenumber'] + ' ';
+    street += tags['addr:street'];
+    parts.push(street);
+  }
+  if (tags['addr:city']) parts.push(tags['addr:city']);
+  if (tags['addr:postcode']) parts.push(tags['addr:postcode']);
+  return parts.join(', ') || '';
+}
+
+// ========== RENDER RESULTS ==========
+function renderResults() {
+  const list = document.getElementById('results-list');
+  const subtitle = document.getElementById('results-subtitle');
+
+  if (!pubs.length) {
+    list.innerHTML = `
+      <div class="no-results">
+        <h3>No pubs found nearby</h3>
+        <p>Try a different location or expand your search.</p>
+        <br>
+        <button class="btn" onclick="showScreen('landing')">Try Again</button>
+      </div>`;
+    subtitle.textContent = '';
+    return;
+  }
+
+  subtitle.textContent = `Found ${pubs.length} pub${pubs.length !== 1 ? 's' : ''} within 3km`;
+
+  list.innerHTML = pubs.map((pub, i) => {
+    const distStr = pub.dist < 1
+      ? Math.round(pub.dist * 1000) + ' m'
+      : pub.dist.toFixed(1) + ' km';
+    const walkMin = Math.round(pub.dist / 0.08333);
+    const distNum = pub.dist < 1 ? Math.round(pub.dist * 1000) : pub.dist.toFixed(1);
+    const distUnit = pub.dist < 1 ? 'metres' : 'km';
+
+    return `
+      <div class="pub-card" onclick="navigateTo(${i})">
+        <div class="pub-info">
+          <h3>&#127866; ${escHtml(pub.name)}</h3>
+          ${pub.addr ? `<p class="pub-address">${escHtml(pub.addr)}</p>` : ''}
+          <span class="pub-type">${pub.type}</span>
+        </div>
+        <div class="pub-distance">
+          <div class="dist-value">${distNum}</div>
+          <div class="dist-unit">${distUnit}</div>
+          <div class="dist-walk">${walkMin} min walk</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function showLoading(msg) {
+  const quip = randomQuote();
+  document.getElementById('results-list').innerHTML = `
+    <div class="loading">
+      <div class="loading-spinner"></div>
+      <p>${msg}</p>
+      <p class="loading-quip">"${quip}"</p>
+    </div>`;
+  document.getElementById('results-subtitle').textContent = '';
+}
+
+function showResultsError(msg) {
+  document.getElementById('results-list').innerHTML = `
+    <div class="no-results">
+      <h3>Oops!</h3>
+      <p>${msg}</p>
+      <br>
+      <button class="btn" onclick="showScreen('landing')">Try Again</button>
+    </div>`;
+}
+
+// ========== NAVIGATION ==========
+function navigateTo(index) {
+  const pub = pubs[index];
+  destLat = pub.lat;
+  destLng = pub.lng;
+  initialDistance = pub.dist;
+
+  document.getElementById('nav-pub-name').textContent = pub.name;
+  document.getElementById('nav-pub-address').textContent = pub.addr || 'Pub / Bar';
+  document.getElementById('nav-quote').textContent = '"' + randomQuote() + '"';
+
+  showScreen('navigation');
+
+  setTimeout(() => initMap(pub), 200);
+
+  // Start watching position
+  if (navigator.geolocation) {
+    if (watchId) navigator.geolocation.clearWatch(watchId);
+    watchId = navigator.geolocation.watchPosition(updatePosition, null, {
+      enableHighAccuracy: true,
+      maximumAge: 5000
+    });
+  }
+}
+
+function initMap(pub) {
+  if (map) { map.remove(); map = null; }
+
+  map = L.map('map', {
+    zoomControl: false,
+    attributionControl: false
+  }).setView([userLat, userLng], 15);
+
+  // Dark-styled tiles
+  const tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19,
+    subdomains: 'abcd'
+  });
+  tiles.addTo(map);
+
+  // User marker
+  const userIcon = L.divIcon({
+    className: '',
+    html: '<div class="user-marker"></div>',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+  });
+  userMarker = L.marker([userLat, userLng], { icon: userIcon }).addTo(map);
+
+  // Pub marker
+  const pubIcon = L.divIcon({
+    className: '',
+    html: '<div class="pub-marker">&#127866;</div>',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16]
+  });
+  L.marker([pub.lat, pub.lng], { icon: pubIcon })
+    .addTo(map)
+    .bindPopup(`<b>${escHtml(pub.name)}</b><br>${escHtml(pub.addr || '')}`)
+    .openPopup();
+
+  // Fit bounds
+  const bounds = L.latLngBounds([
+    [userLat, userLng],
+    [pub.lat, pub.lng]
+  ]);
+  map.fitBounds(bounds, { padding: [60, 60] });
+
+  // Get route
+  fetchRoute(userLat, userLng, pub.lat, pub.lng);
+}
+
+function fetchRoute(lat1, lng1, lat2, lng2) {
+  const url = `https://router.project-osrm.org/route/v1/foot/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson&steps=true`;
+
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      if (data.routes && data.routes.length) {
+        const route = data.routes[0];
+        const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+
+        if (routeLine) map.removeLayer(routeLine);
+        routeLine = L.polyline(coords, {
+          color: '#C5A55A',
+          weight: 5,
+          opacity: 0.8,
+          dashArray: '10, 8',
+          lineCap: 'round'
+        }).addTo(map);
+
+        // Update stats
+        const distKm = route.distance / 1000;
+        const durMin = Math.round(route.duration / 60);
+        updateNavStats(distKm, durMin);
+      }
+    })
+    .catch(() => {
+      // Fallback: straight line distance
+      const d = haversine(lat1, lng1, lat2, lng2);
+      updateNavStats(d, Math.round(d / 0.08333));
+    });
+}
+
+function updateNavStats(distKm, durMin) {
+  const distEl = document.getElementById('nav-distance');
+  const timeEl = document.getElementById('nav-time');
+
+  if (distKm < 1) {
+    distEl.textContent = Math.round(distKm * 1000) + ' m';
+  } else {
+    distEl.textContent = distKm.toFixed(1) + ' km';
+  }
+  timeEl.textContent = durMin + ' min';
+
+  // Update pint fill based on progress
+  updatePintFill(distKm);
+}
+
+function updatePintFill(currentDist) {
+  const startDist = initialDistance || currentDist;
+  let progress = 1 - (currentDist / startDist);
+  progress = Math.max(0, Math.min(1, progress));
+
+  const fillHeight = Math.round(progress * 75);
+  const stout = document.getElementById('nav-stout');
+  const head = document.getElementById('nav-head');
+
+  stout.style.height = fillHeight + '%';
+  if (fillHeight > 5) {
+    head.style.bottom = fillHeight + '%';
+    head.style.opacity = '1';
+  } else {
+    head.style.opacity = '0';
+  }
+
+  // Check if arrived (within 50m)
+  if (currentDist < 0.05) {
+    showArrived();
+  }
+}
+
+function updatePosition(pos) {
+  userLat = pos.coords.latitude;
+  userLng = pos.coords.longitude;
+
+  if (userMarker) {
+    userMarker.setLatLng([userLat, userLng]);
+  }
+
+  if (destLat && destLng) {
+    const newDist = haversine(userLat, userLng, destLat, destLng);
+    const walkMin = Math.round(newDist / 0.08333);
+    updateNavStats(newDist, walkMin);
+
+    // Rotate quotes
+    if (Math.random() < 0.15) {
+      document.getElementById('nav-quote').textContent = '"' + randomQuote() + '"';
+    }
+  }
+}
+
+function showArrived() {
+  document.getElementById('arrived-overlay').classList.add('show');
+  if (watchId) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+}
+
+function closeArrived() {
+  document.getElementById('arrived-overlay').classList.remove('show');
+  exitNavigation();
+}
+
+function exitNavigation() {
+  if (watchId) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+  showScreen('results');
+}
+
+// ========== UTILITIES ==========
+function haversine(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const dLat = deg2rad(lat2 - lat1);
+  const dLng = deg2rad(lng2 - lng1);
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+            Math.sin(dLng/2) * Math.sin(dLng/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
+
+function deg2rad(d) { return d * (Math.PI/180); }
+
+function escHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+// ========== INIT ==========
+createBubbles();
+animateLandingPint();
+</script>
+
+</body>
+</html>
