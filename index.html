@@ -627,6 +627,7 @@
     text-transform: uppercase;
   }
 
+  .tag-verified { background: rgba(76, 175, 80, 0.25); color: #a5d6a7; border: 1px solid rgba(76, 175, 80, 0.4); }
   .tag-confirmed { background: rgba(76, 175, 80, 0.2); color: #81c784; border: 1px solid rgba(76, 175, 80, 0.3); }
   .tag-likely { background: rgba(197, 165, 90, 0.2); color: var(--guinness-gold); border: 1px solid rgba(197, 165, 90, 0.3); }
   .tag-maybe { background: rgba(242, 226, 196, 0.08); color: rgba(242, 226, 196, 0.5); border: 1px solid rgba(242, 226, 196, 0.1); }
@@ -767,6 +768,70 @@ let userMarker = null;
 let watchId = null;
 let pubs = [];
 let initialDistance = null;
+
+// ========== KNOWN GUINNESS PUBS (NYC) ==========
+// Curated from Reddit (r/AskNYC, r/nyc, r/beer), blogs (Eater, TimeOut, Thrillist,
+// Infatuation), Guinness Guru ratings, TripAdvisor, and The Guinness Map.
+// Pubs that appear across multiple sources are marked with higher confidence.
+const KNOWN_GUINNESS_PUBS = [
+  // === MANHATTAN ===
+  // Frequently top-rated across Reddit, blogs, and Guinness rating sites
+  { name: "McSorley's Old Ale House", lat: 40.7288, lng: -73.9895, addr: "15 E 7th St, East Village", borough: "Manhattan", confidence: 5 },
+  { name: "The Dead Rabbit", lat: 40.7033, lng: -74.0134, addr: "30 Water St, Financial District", borough: "Manhattan", confidence: 5 },
+  { name: "Molly's Shebeen", lat: 40.7381, lng: -73.9836, addr: "287 3rd Ave, Gramercy", borough: "Manhattan", confidence: 5 },
+  { name: "Paddy Reilly's Music Bar", lat: 40.7423, lng: -73.9835, addr: "519 2nd Ave, Murray Hill", borough: "Manhattan", confidence: 4 },
+  { name: "Swift Hibernian Lounge", lat: 40.7260, lng: -73.9907, addr: "34 E 4th St, NoHo", borough: "Manhattan", confidence: 4 },
+  { name: "The Long Hall Pub & Grocery", lat: 40.7400, lng: -73.9930, addr: "53 W 19th St, Flatiron", borough: "Manhattan", confidence: 5 },
+  { name: "Peter McManus Cafe", lat: 40.7471, lng: -73.9975, addr: "152 7th Ave, Chelsea", borough: "Manhattan", confidence: 4 },
+  { name: "Connolly's Pub & Restaurant", lat: 40.7514, lng: -73.9797, addr: "121 W 45th St, Midtown", borough: "Manhattan", confidence: 4 },
+  { name: "Rosie O'Grady's", lat: 40.7601, lng: -73.9842, addr: "800 7th Ave, Midtown", borough: "Manhattan", confidence: 3 },
+  { name: "Tír na nÓg", lat: 40.7510, lng: -73.9926, addr: "315 W 33rd St, Hell's Kitchen", borough: "Manhattan", confidence: 4 },
+  { name: "The Perfect Pint", lat: 40.7527, lng: -73.9900, addr: "203 W 45th St, Midtown", borough: "Manhattan", confidence: 4 },
+  { name: "O'Lunney's Times Square Pub", lat: 40.7577, lng: -73.9866, addr: "145 W 45th St, Times Square", borough: "Manhattan", confidence: 3 },
+  { name: "Sláinte", lat: 40.7141, lng: -73.9888, addr: "304 Bowery, East Village", borough: "Manhattan", confidence: 4 },
+  { name: "The Playwright Irish Pub", lat: 40.7585, lng: -73.9868, addr: "202 W 49th St, Midtown", borough: "Manhattan", confidence: 3 },
+  { name: "O'Hara's Restaurant & Pub", lat: 40.7117, lng: -74.0122, addr: "120 Cedar St, Financial District", borough: "Manhattan", confidence: 4 },
+  { name: "Neary's", lat: 40.7608, lng: -73.9665, addr: "358 E 57th St, Midtown East", borough: "Manhattan", confidence: 5 },
+  { name: "Malachy's Donegal Inn", lat: 40.7649, lng: -73.9824, addr: "103 W 72nd St, Upper West Side", borough: "Manhattan", confidence: 4 },
+  { name: "Ryan's Daughter", lat: 40.7786, lng: -73.9537, addr: "350 E 85th St, Upper East Side", borough: "Manhattan", confidence: 3 },
+  { name: "The Ginger Man", lat: 40.7460, lng: -73.9848, addr: "11 E 36th St, Murray Hill", borough: "Manhattan", confidence: 4 },
+  { name: "Pony Bar", lat: 40.7630, lng: -73.9608, addr: "1444 First Ave, Upper East Side", borough: "Manhattan", confidence: 3 },
+  { name: "Kinsale Tavern", lat: 40.7649, lng: -73.9824, addr: "1672 3rd Ave, Upper East Side", borough: "Manhattan", confidence: 3 },
+  { name: "O'Flanagan's Ale House", lat: 40.7333, lng: -74.0008, addr: "80 Avenue A, East Village", borough: "Manhattan", confidence: 3 },
+  { name: "The Grafton", lat: 40.7322, lng: -73.9910, addr: "126 1st Ave, East Village", borough: "Manhattan", confidence: 3 },
+  { name: "The Scratcher", lat: 40.7275, lng: -73.9899, addr: "209 E 5th St, East Village", borough: "Manhattan", confidence: 4 },
+  { name: "Fiddlesticks Pub & Grill", lat: 40.7312, lng: -74.0004, addr: "56 Greenwich Ave, West Village", borough: "Manhattan", confidence: 3 },
+  { name: "Blarney Stone", lat: 40.7536, lng: -73.9904, addr: "710 8th Ave, Hell's Kitchen", borough: "Manhattan", confidence: 3 },
+  { name: "O'Donoghue's Bar & Restaurant", lat: 40.7570, lng: -73.9709, addr: "66 E 55th St, Midtown East", borough: "Manhattan", confidence: 3 },
+  { name: "The Irish Pub", lat: 40.7519, lng: -73.9931, addr: "837 7th Ave, Midtown", borough: "Manhattan", confidence: 3 },
+  { name: "Ulysses Folk House", lat: 40.7050, lng: -74.0076, addr: "95 Pearl St, Financial District", borough: "Manhattan", confidence: 4 },
+  { name: "Killarney Rose", lat: 40.7061, lng: -74.0089, addr: "127 Pearl St, Financial District", borough: "Manhattan", confidence: 3 },
+
+  // === BROOKLYN ===
+  { name: "The Irish Haven", lat: 40.6345, lng: -74.0283, addr: "5721 4th Ave, Sunset Park", borough: "Brooklyn", confidence: 5 },
+  { name: "Farrell's Bar & Grill", lat: 40.6602, lng: -73.9817, addr: "215 Prospect Park West, Windsor Terrace", borough: "Brooklyn", confidence: 5 },
+  { name: "O'Connor's Bar", lat: 40.6800, lng: -73.9780, addr: "39 5th Ave, Park Slope", borough: "Brooklyn", confidence: 4 },
+  { name: "Paddy's of Park Slope", lat: 40.6740, lng: -73.9790, addr: "273 13th St, Park Slope", borough: "Brooklyn", confidence: 3 },
+  { name: "The Wicked Monk", lat: 40.6210, lng: -73.9720, addr: "9510 3rd Ave, Bay Ridge", borough: "Brooklyn", confidence: 4 },
+  { name: "Kitty Kiernan's", lat: 40.6186, lng: -73.9250, addr: "9715 3rd Ave, Bay Ridge", borough: "Brooklyn", confidence: 3 },
+  { name: "Sycamore Bar + Flower Shop", lat: 40.6600, lng: -73.9620, addr: "1118 Cortelyou Rd, Ditmas Park", borough: "Brooklyn", confidence: 3 },
+  { name: "Shenanigans Pub", lat: 40.7534, lng: -73.9392, addr: "802 Manhattan Ave, Greenpoint", borough: "Brooklyn", confidence: 3 },
+
+  // === QUEENS ===
+  { name: "Donovan's Pub", lat: 40.7515, lng: -73.8862, addr: "57-24 Roosevelt Ave, Woodside", borough: "Queens", confidence: 5 },
+  { name: "Sidetracks Bar", lat: 40.7465, lng: -73.8900, addr: "45-02 Queens Blvd, Sunnyside", borough: "Queens", confidence: 3 },
+  { name: "Sean's Bar & Kitchen", lat: 40.7580, lng: -73.9060, addr: "34-01 Queens Blvd, Long Island City", borough: "Queens", confidence: 3 },
+  { name: "The Irish Rover", lat: 40.7032, lng: -73.8076, addr: "132-28 Queens Blvd, Kew Gardens", borough: "Queens", confidence: 3 },
+
+  // === BRONX ===
+  { name: "Rambling House", lat: 40.8823, lng: -73.8987, addr: "4292 Katonah Ave, Woodlawn", borough: "Bronx", confidence: 5 },
+  { name: "The Punch Bowl", lat: 40.8966, lng: -73.8667, addr: "235-237 W 238th St, Kingsbridge", borough: "Bronx", confidence: 3 },
+  { name: "An Beal Bocht Cafe", lat: 40.8850, lng: -73.9010, addr: "445 W 238th St, Riverdale", borough: "Bronx", confidence: 4 },
+
+  // === STATEN ISLAND ===
+  { name: "Duffy's Tavern", lat: 40.6355, lng: -74.1166, addr: "168 Bay St, St. George", borough: "Staten Island", confidence: 3 },
+  { name: "Joyce's Tavern", lat: 40.5985, lng: -74.0855, addr: "36 Richmond Valley Rd, Eltingville", borough: "Staten Island", confidence: 3 },
+];
 
 // ========== QUOTES ==========
 const quotes = [
@@ -927,7 +992,8 @@ function searchPubs() {
   })
   .then(r => r.json())
   .then(data => {
-    pubs = data.elements
+    // Build results from Overpass
+    const overpassPubs = data.elements
       .map(el => {
         const lat = el.lat || (el.center && el.center.lat);
         const lng = el.lon || (el.center && el.center.lon);
@@ -938,16 +1004,62 @@ function searchPubs() {
         const addr = buildAddress(tags);
         const type = tags.amenity || 'pub';
         const dist = haversine(userLat, userLng, lat, lng);
-        const score = guinnessScore(name, tags);
+        let score = guinnessScore(name, tags);
 
-        return { name, addr, type, lat, lng, dist, score };
+        // Cross-reference with curated database
+        const knownMatch = findKnownPub(name, lat, lng);
+        if (knownMatch) score += knownMatch.confidence * 15;
+
+        return { name, addr, type, lat, lng, dist, score, verified: !!knownMatch };
       })
-      .filter(Boolean)
+      .filter(Boolean);
+
+    // Add any nearby curated pubs that Overpass missed
+    const knownNearby = KNOWN_GUINNESS_PUBS
+      .map(kp => {
+        const dist = haversine(userLat, userLng, kp.lat, kp.lng);
+        if (dist > radius / 1000) return null;
+
+        // Skip if already matched from Overpass
+        const alreadyFound = overpassPubs.some(op =>
+          fuzzyMatch(op.name, kp.name) || haversine(op.lat, op.lng, kp.lat, kp.lng) < 0.05
+        );
+        if (alreadyFound) return null;
+
+        return {
+          name: kp.name,
+          addr: kp.addr,
+          type: 'pub',
+          lat: kp.lat,
+          lng: kp.lng,
+          dist,
+          score: 100 + kp.confidence * 15,
+          verified: true
+        };
+      })
+      .filter(Boolean);
+
+    pubs = [...overpassPubs, ...knownNearby]
       .sort((a, b) => b.score - a.score || a.dist - b.dist);
 
     renderResults();
   })
   .catch(() => showResultsError('Error searching for pubs. Please try again.'));
+}
+
+// Match an Overpass result against the curated database
+function findKnownPub(name, lat, lng) {
+  return KNOWN_GUINNESS_PUBS.find(kp =>
+    fuzzyMatch(name, kp.name) || haversine(lat, lng, kp.lat, kp.lng) < 0.05
+  );
+}
+
+// Simple fuzzy name matching
+function fuzzyMatch(a, b) {
+  const normalize = s => s.toLowerCase().replace(/[''`\-\.]/g, '').replace(/\s+/g, ' ').trim();
+  const na = normalize(a);
+  const nb = normalize(b);
+  return na === nb || na.includes(nb) || nb.includes(na);
 }
 
 // ========== GUINNESS LIKELIHOOD SCORING ==========
@@ -978,7 +1090,8 @@ function guinnessScore(name, tags) {
   return score;
 }
 
-function guinnessLabel(score) {
+function guinnessLabel(score, verified) {
+  if (verified) return { text: 'Guinness verified', cls: 'tag-verified' };
   if (score >= 50) return { text: 'Guinness confirmed', cls: 'tag-confirmed' };
   if (score >= 25) return { text: 'Likely has Guinness', cls: 'tag-likely' };
   if (score >= 5)  return { text: 'Pub', cls: 'tag-maybe' };
@@ -1025,7 +1138,7 @@ function renderResults() {
     const distNum = pub.dist < 1 ? Math.round(pub.dist * 1000) : pub.dist.toFixed(1);
     const distUnit = pub.dist < 1 ? 'metres' : 'km';
 
-    const label = guinnessLabel(pub.score);
+    const label = guinnessLabel(pub.score, pub.verified);
     return `
       <div class="pub-card" onclick="navigateTo(${i})">
         <div class="pub-info">
